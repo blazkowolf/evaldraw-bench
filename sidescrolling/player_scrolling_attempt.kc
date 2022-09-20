@@ -1,0 +1,358 @@
+#define true                     1
+#define false                    0
+
+// Change this value to manipulate how many tiles
+// take up the screen width and height
+#define MAX_SCREEN_TILES_ACROSS 12
+
+#define WORLD_LENGTH_TILES      24
+#define WORLD_HEIGHT_TILES      24
+
+struct { x; y; } vec2d_t;
+
+struct {
+   vec2d_t screen;// Screen coordinates of player
+   vec2d_t map;   // Pixel location of player in map
+   vec2d_t tile;  // Current tile of the player
+} player_t;
+
+static stime, otime, dtime;
+
+static screenx, screeny, minispx, minispy, 
+       scale, screenxres, screenyres, tilesizx, tilesizy;
+       
+// Use this to determine the top-left corner that the viewport
+// begins drawing at...
+static vec2d_t currtile, parallax;
+
+// Use this to test proper map scrolling with the inclusion of a player...
+static player_t p;
+
+// 24x24 map; This will be used to test horizontal and vertical scrolling...
+static world[WORLD_HEIGHT_TILES][WORLD_LENGTH_TILES] = {
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1,
+   1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+};
+
+() { // The 'main' entry point for the program...
+
+   glenable( GL_ALPHA_TEST );
+
+   if ( numframes == 0 ) {
+      screenxres = xres; screenyres = yres;
+      screenx = 0; screeny = 0;
+      currtile.x = 0; currtile.y = 0;
+      parallax.x = 0; parallax.y = 0;
+      tilesizx = screenxres/MAX_SCREEN_TILES_ACROSS;
+      tilesizy = screenyres/MAX_SCREEN_TILES_ACROSS;
+      scale = 8;
+      p.tile.x = 20; p.tile.y = 10;
+      p.map.x = p.tile.x*tilesizx+tilesizx/2;
+      p.map.y = p.tile.y*tilesizy;
+   }
+
+   while ( true ) {
+      otime = stime;
+      stime = klock();
+      drawworld_opt();
+      //drawminimap( 8, 20, 20 );
+      //drawminimap_opt( 8, 20, 20 );
+      drawplayer();
+      //scroll( dtime*256 );
+      moveplayer( dtime*256, dtime*256 );
+      dtime = stime - otime;
+      refresh();
+   }
+
+}
+
+moveplayer( dx, dy ) {
+   screenx = p.map.x - screenxres/2;
+   screeny = p.map.y - screenyres/2;
+   if ( keystatus[0xcb] ) { // Left arrow-key
+      if ( p.map.x > 0 ) {
+         p.map.x -= dx;
+         if ( p.screen.x == screenxres/2 ) parallax.x += dx/scale;
+      }
+   } 
+   if ( keystatus[0xcd] ) { // Right arrow-key
+      if ( p.map.x < tilesizx*WORLD_LENGTH_TILES ) {
+         p.map.x += dx;
+         if ( p.screen.x == screenxres/2 ) parallax.x -= dx/scale;
+      }
+   } 
+   if ( keystatus[0xc8] ) {
+      if ( p.map.y > 0 ) { 
+         p.map.y -= dy;
+         if ( p.screen.y == screenyres/2 ) parallax.y += dy/scale;
+      }
+   } 
+   if ( keystatus[0xd0] ) {
+      if ( p.map.y < tilesizy*WORLD_HEIGHT_TILES ) {
+         p.map.y += dy;
+         if ( p.screen.y == screenyres/2 ) parallax.y -= dy/scale;
+      }
+   }
+   /* Update player tile here */
+   p.tile.x = p.map.x/tilesizx;
+   p.tile.y = p.map.y/tilesizy;
+   
+   /* Update screen coordinates here */
+   outrimx = tilesizx*WORLD_LENGTH_TILES - tilesizx*MAX_SCREEN_TILES_ACROSS;
+   outrimy = tilesizy*WORLD_HEIGHT_TILES - tilesizy*MAX_SCREEN_TILES_ACROSS;
+   p.screen.x = min( p.map.x, max( screenxres/2, p.map.x - outrimx ) );
+   p.screen.y = min( p.map.y, max( screenyres/2, p.map.y - outrimy ) );
+   
+   moveto( screenxres - 150, 25 );
+   printf( "px: %g, py: %g", int( p.tile.x ), int( p.tile.y ) );
+   
+   screenx = -max( 0, min( screenx, tilesizx*WORLD_LENGTH_TILES - screenxres ) );
+   screeny = -max( 0, min( screeny, tilesizy*WORLD_HEIGHT_TILES - screenyres ) );
+}
+
+scroll ( movspd ) {
+   //moveto( xres - 100, 25 );
+   //printf( "movspd: %g", movspd );
+   if ( screenx < 0 ) {
+      screenx += movspd;
+      parallax.x += movspd/scale;
+      currtile.x -= movspd/tilesizx;
+      minispx -= movspd/scale;
+   }
+   if ( screenx > screenxres - tilesizx*WORLD_LENGTH_TILES ) {
+      screenx -= movspd;
+      parallax.x -= movspd/scale;
+      currtile.x += movspd/tilesizx;
+      minispx += movspd/scale;
+   }
+   if ( screeny < 0 ) {
+      screeny += movspd;
+      parallax.y += movspd/scale;
+      currtile.y -= movspd/tilesizy;
+      minispy -= movspd/scale;
+   }
+   if ( screeny > screenyres - tilesizy*WORLD_HEIGHT_TILES ) {
+      screeny -= movspd;
+      parallax.y -= movspd/scale;
+      currtile.y += movspd/tilesizy;
+      minispy += movspd/scale;
+   }
+}
+
+drawplayer () {
+   glsettex( "/Daniel/Soulsvania/Images/alucardIdle1.png" );
+   draw_rect( 
+      p.screen.x,
+      p.screen.y, 
+      tilesizx, 
+      tilesizy*2 
+   );
+   drawspr(
+      p.screen.x,
+      p.screen.y,
+      tilesizx/2,
+      tilesizy,
+      0
+   );
+}
+
+drawworld_opt () {
+   /* Parallax layer drawing code goes here */
+   glsettex( "wood.png" );
+   u = parallax.x*-50/xres;
+   v = parallax.y*-50/yres;
+   glbegin(GL_QUADS); gldisable(GL_DEPTH_TEST);
+   gltexcoord(u,v); glvertex(0,0);
+   gltexcoord(u+MAX_SCREEN_TILES_ACROSS,v); glvertex(xres,0);
+   gltexcoord(u+MAX_SCREEN_TILES_ACROSS,v+MAX_SCREEN_TILES_ACROSS); glvertex(xres,yres);
+   gltexcoord(u,v+MAX_SCREEN_TILES_ACROSS); glvertex(0,yres);
+   
+   /* Foreground layer drawing code goes here */
+   tx = p.tile.x - MAX_SCREEN_TILES_ACROSS/2; ty = p.tile.y - MAX_SCREEN_TILES_ACROSS/2;
+   x0 = max( floor( tx ), 0 ); x1 = min( ceil( tx + MAX_SCREEN_TILES_ACROSS ), WORLD_LENGTH_TILES );
+   y0 = max( floor( ty ), 0 ); y1 = min( ceil( ty + MAX_SCREEN_TILES_ACROSS ), WORLD_HEIGHT_TILES );
+   if ( p.tile.x < MAX_SCREEN_TILES_ACROSS/2 ) x1 = x0 + ( MAX_SCREEN_TILES_ACROSS - x0 );
+   if ( p.tile.y < MAX_SCREEN_TILES_ACROSS/2 ) y1 = y0 + ( MAX_SCREEN_TILES_ACROSS - y0 );
+   if ( p.tile.x > WORLD_LENGTH_TILES - MAX_SCREEN_TILES_ACROSS/2 ) x0 = WORLD_LENGTH_TILES - MAX_SCREEN_TILES_ACROSS;
+   if ( p.tile.y > WORLD_HEIGHT_TILES - MAX_SCREEN_TILES_ACROSS/2 ) y0 = WORLD_HEIGHT_TILES - MAX_SCREEN_TILES_ACROSS;
+   for( y = y0; y < y1; y++ ) {
+      for( x = x0; x < x1; x++ ) {
+         spx = screenx + tilesizx/2 + tilesizx*x;
+         spy = screeny + tilesizy/2 + tilesizy*y;
+              if ( world[y][x] == 0 ) { continue; glsettex("wood.png"); }
+         else if ( world[y][x] == 1 ) { glsettex( "brick.png" ); }
+         drawspr( spx, spy, tilesizx/2, tilesizy/2, 0 );
+      }
+   }
+}
+
+/* drawdebugmap() still needs to be refactored to implement
+   the optimized drawing algorithm... */
+drawdebugmap () {
+   // Rect drawing starts from what would be the top left corner of the rect
+   spx = screenx + tilesizx/2;
+   spy = screeny + tilesizy/2;
+   for ( y = 0; y < WORLD_HEIGHT_TILES; y++ ) {
+      for ( x = 0; x < WORLD_LENGTH_TILES; x++ ) {
+         if ( world[y][x] == 1 ) {
+            draw_rect( spx, spy, tilesizx, tilesizy );
+         }
+         spx += tilesizx;   
+      }
+      // reset the x pos
+      spx = screenx + tilesizx/2;
+      spy += tilesizy;
+   }
+}
+
+drawminimap ( miniscale, xpad, ypad ) {
+   if ( numframes == 0 ) {
+      scale = miniscale;
+   }
+   newtilesizx = tilesizx/scale;
+   newtilesizy = tilesizy/scale;
+   
+   tx = int(currtile.x); ty = int(currtile.y);
+   
+   //moveto( xres - 100, 50 );
+   //printf( "tx: %g", tx );
+   //moveto( xres - 100, 75 );
+   //printf( "ty: %g", ty );
+
+   // Rect drawing starts from what would be the top left corner of the rect
+   spx = xres - xpad - WORLD_LENGTH_TILES*newtilesizx + newtilesizx/2;
+   spy = yres - ypad - WORLD_HEIGHT_TILES*newtilesizy + newtilesizy/2;
+   for ( y = 0; y < WORLD_HEIGHT_TILES; y++ ) {
+      for ( x = 0; x < WORLD_LENGTH_TILES; x++ ) {
+         if ( world[y][x] == 1 ) {
+            draw_rect( spx, spy, newtilesizx, newtilesizy );
+         }
+         spx += newtilesizx;   
+      }
+      // reset the x pos
+      spx = xres - xpad - WORLD_LENGTH_TILES*newtilesizx + newtilesizx/2;
+      spy += newtilesizy;
+   }
+   if ( numframes == 0 ) {
+      minispx = xres - xpad - WORLD_LENGTH_TILES*newtilesizx + 
+                 MAX_SCREEN_TILES_ACROSS*newtilesizx/2;
+      minispy = yres - ypad - WORLD_HEIGHT_TILES*newtilesizy + 
+                 MAX_SCREEN_TILES_ACROSS*newtilesizy/2;
+   }
+   draw_rect( 
+      minispx, 
+      minispy, 
+      MAX_SCREEN_TILES_ACROSS*newtilesizx, 
+      MAX_SCREEN_TILES_ACROSS*newtilesizy 
+   );
+}
+
+/* drawminimap_opt() essentially shows how the optimized 
+   drawing algorithm works in real time... */
+drawminimap_opt ( miniscale, xpad, ypad ) {
+   if ( numframes == 0 ) scale = miniscale;
+   newtilesizx = tilesizx/scale;
+   newtilesizy = tilesizy/scale;
+   
+   tx = p.tile.x - MAX_SCREEN_TILES_ACROSS/2; ty = p.tile.y - MAX_SCREEN_TILES_ACROSS/2;
+   
+   moveto( xres - 100, 50 );
+   printf( "tx: %g", tx );
+   moveto( xres - 100, 75 );
+   printf( "ty: %g", ty );
+   
+   spx = xres - xpad - ( WORLD_LENGTH_TILES - tx )*newtilesizx + newtilesizx/2;
+   spy = yres - ypad - ( WORLD_HEIGHT_TILES - ty )*newtilesizy + newtilesizy/2;
+   
+   x0 = max(floor(tx),0); x1 = min(ceil(tx+MAX_SCREEN_TILES_ACROSS),WORLD_HEIGHT_TILES);
+   y0 = max(floor(ty),0); y1 = min(ceil(ty+MAX_SCREEN_TILES_ACROSS),WORLD_HEIGHT_TILES);
+   for(y=y0;y<y1;y++) {
+      for(x=x0;x<x1;x++)
+      {
+         spx = xres - xpad - screenx/scale + newtilesizx/2 + newtilesizx*x;
+         spy = yres - ypad - screeny/scale + newtilesizy/2 + newtilesizy*y;
+         if (world[y][x] == 1) { draw_rect(spx,spy,newtilesizx,newtilesizy); }
+      }
+   }
+   
+#if 0
+   for ( y = max( 0, ty-1 ); y < WORLD_HEIGHT_TILES && 
+         y < ( ty+MAX_SCREEN_TILES_ACROSS+1 ); y++ ) {
+      for ( x = max( 0, tx-1 ); x < WORLD_LENGTH_TILES && 
+         x < ( tx+MAX_SCREEN_TILES_ACROSS+1 ); x++ ) {
+         if ( world[y][x] == 1 ) {
+            draw_rect( spx, spy, newtilesizx, newtilesizy );
+         }
+         spx += newtilesizx;
+      }
+      // Reset the xpos
+      spx = xres - xpad - ( WORLD_LENGTH_TILES - max( 0, tx-1 ) )*newtilesizx + newtilesizx/2;
+      spy += newtilesizy;
+   }
+#endif
+   
+   if ( numframes == 0 ) {
+      minispx = xres - xpad - ( WORLD_LENGTH_TILES - tx )*newtilesizx + 
+                 MAX_SCREEN_TILES_ACROSS*newtilesizx/2;
+      minispy = yres - ypad - ( WORLD_HEIGHT_TILES - ty )*newtilesizy + 
+                 MAX_SCREEN_TILES_ACROSS*newtilesizy/2;
+   }
+   
+   // Draw the viewport rectangle
+   draw_rect( 
+      minispx, 
+      minispy, 
+      MAX_SCREEN_TILES_ACROSS*newtilesizx, 
+      MAX_SCREEN_TILES_ACROSS*newtilesizy 
+   );
+}
+
+// modify this to treat x,y as the center
+draw_rect( x, y, w, h ) {
+   // calc the corner points from the
+   // center.
+   hw = w/2;
+   hh = h/2;
+   
+   vec2d_t p1;
+   vec2d_t p2;
+   vec2d_t p3;
+   vec2d_t p4;
+   
+   p1.x = x - hw;
+   p1.y = y - hh;
+   p2.x = x + hw;
+   p2.y = y - hh;
+   p3.x = x + hw;
+   p3.y = y + hh;
+   p4.x = x - hw;
+   p4.y = y + hh;
+   
+   moveto(p1.x, p1.y);
+   lineto(p2.x, p2.y);
+   lineto(p3.x, p3.y);
+   lineto(p4.x, p4.y);
+   lineto(p1.x, p1.y);
+}

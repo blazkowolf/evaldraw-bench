@@ -1,0 +1,162 @@
+#define RIGHT_ARROW      0xcd
+#define LEFT_ARROW       0xcb
+#define PADDLE_THICKNESS 20
+
+enum { LINE, FILL };
+
+struct { x, y } origin_s;
+
+struct { x, y, r, xdir, ydir, angle } ball_s;
+struct { x, y, w } paddle_s;
+
+static origin_s origin;
+
+() {
+	static ball_s ball;
+	static paddle_s top, bottom;
+	
+	ball.x     = xres / 2;
+	ball.y     = yres / 2;
+	ball.r     = 10;
+	ball.xdir  = 1;
+	ball.ydir  = 1;
+	ball.angle = RND % 140 + 200;
+	top.x      = xres / 2;
+	top.y      = 0;
+	top.w      = 200;
+	bottom.x   = xres / 2;
+	bottom.y   = yres - PADDLE_THICKNESS;
+	bottom.w   = 200;
+
+	while (1) {
+		//if (bstatus) { begin(ball.falling); }
+	
+		cls(0);
+		drawpaddle(top.x, top.y, top.w);
+		drawpaddle(bottom.x, bottom.y - 1, bottom.w); // 
+		drawball(ball.x, ball.y, ball.r);
+		refresh();
+		
+		movepaddle(bottom.x, bottom.y, bottom.w, 2);
+		enemyai(top.x, top.y, top.w, 3, ball.x, 10);
+		moveball(ball, top.x, top.w, bottom.x, bottom.w, 2, 2);
+		checkscore();
+
+    	sleep(1);
+	}
+}
+
+begin(&falling) {
+	falling = 1;
+}
+
+debuglines(x, y) {
+	setcol(0xff0000);
+	setpix(x, y);
+}
+
+drawball(x, y, r) {
+	setcol(0x0000ff);
+	drawsph(x, y, -r);
+}
+
+drawpaddle(x, y, w) {
+	setcol(0x00ff00);
+	translateorigin(x, y);
+	drawrect(-w/2, 0, w, PADDLE_THICKNESS, LINE);	
+}
+
+movepaddle(&x, &y, w, dx) {
+	if (keystatus[LEFT_ARROW]) {
+		x -= dx;
+	}
+	
+	if (keystatus[RIGHT_ARROW]) {
+		x += dx;
+	}
+	
+	if (x < w) {
+		x = w;
+	}
+	
+	if (x > xres - w) {
+		x = xres - w;
+	}
+}
+
+enemyai(&x, &y, w, dx, ballx, skill) {
+	if (ballx < x - skill) {
+		x -= dx;
+	}
+	
+	if (ballx > x + skill) {
+		x += dx;
+	}
+	
+	if (x < w) {
+		x = w;
+	}
+	
+	if (x > xres - w) {
+		x = xres - w;
+	}
+}
+
+moveball(ball_s ball, topx, topl, bottomx, bottoml, dx, dy) {
+	ball.x += cos(ball.angle * PI / 180) * dx * ball.xdir;
+	ball.y += sin(ball.angle * PI / 180) * dy * ball.ydir;
+	
+	if (ball.x < ball.r) {
+		ball.xdir = -ball.xdir;
+	}
+	
+	if (ball.x > xres - ball.r) {
+		ball.xdir = -ball.xdir;
+	}
+	
+	if (ball.x > topx - topl && 
+		 ball.x < topx + topl && 
+		 ball.y < ball.r + PADDLE_THICKNESS) {
+		  
+		ball.ydir = -ball.ydir;
+		dx = 5 * ( (ball.x - topx) / 25);
+		
+	}
+	
+	if (ball.x > bottomx - bottoml && 
+		 ball.x < bottomx + bottoml && 
+		 ball.y > yres - ball.r - PADDLE_THICKNESS) { 
+		  
+		ball.ydir = -ball.ydir;
+		dx = 5 * ((ball.x - bottomx) / 25);
+		
+	}
+	
+	ball.angle = RND % 140 + 200;
+}
+
+checkscore() {
+}
+
+drawrect(x, y, w, h, mode) {
+	newx = int(x + origin.x);
+	newy = int(y + origin.y);
+	
+	moveto(newx, newy);
+
+	if (mode == LINE) {
+		lineto(newx + w, newy    );
+		lineto(newx + w, newy + h);
+		lineto(newx    , newy + h);
+		lineto(newx    , newy    );
+	} else if (mode == FILL) {
+		for (i = 0; i < h; i++) {
+			lineto(newx + w, newy  );
+			moveto(newx    , newy++);
+		}
+	}
+}
+
+translateorigin(x, y) {
+	origin.x = x; origin.y = y;
+}

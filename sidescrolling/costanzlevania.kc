@@ -1,0 +1,266 @@
+static grav = 150.0;
+
+// tiles
+struct { x; y; w; h; } tile_t;
+
+// Rect, rather an aabb
+struct { x; y; w; h; } rect_t;
+struct { x; y; } vec2d_t;
+
+// the player
+struct { x; y; xvel; yvel; w; h; grounded; } player_t;
+
+static jump_vel = 250.0;
+static p_movesp = 100.0;
+static y_floor = 600;
+
+// Change this value to manipulate how many tiles
+// take up the screen width and height
+#define MAX_SCREEN_TILES_ACROSS 12
+#define WORLD_LENGTH_TILES      24
+#define WORLD_HEIGHT_TILES      24
+
+enum { TEX, LINE };
+
+static stime, otime, dtime;
+static screenx, screeny, tilesizx, tilesizy;
+static player_t p;
+
+// 24x24 map; This will be used to test horizontal and vertical scrolling...
+static world[WORLD_HEIGHT_TILES][WORLD_LENGTH_TILES] = {
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,1,0,1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,1,
+	1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,
+	1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,
+	1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,
+	1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,1,0,1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,1,
+	1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,
+	1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+};
+
+() { // The 'main' entry point for the program...
+	glenable( GL_ALPHA_TEST );
+	if ( numframes == 0 ) {
+		screenx = 0; screeny = 0;
+		tilesizx = 32;
+		tilesizy = 32;
+
+		// init the player
+		p.x = xres/2;
+		p.y = yres/2;
+		p.xvel = 0;
+		p.yvel = 0;
+		p.w = 32;
+		p.h = 48;
+
+	}
+	while ( 1 ) {
+		cls( 0 );
+		otime = stime;
+		stime = klock();
+		drawworld();
+		drawdebugmap();
+		//drawplayer( p.x, p.y, 32, 48 );
+		// Draw a simple rect to be the player for now
+		draw_rect( p.x, p.y, p.w, p.h );
+		p_move(p, dtime);
+		p_update(p, dtime);
+		scroll( dtime*256 );
+		dtime = stime - otime;
+		refresh();
+	}
+}
+
+scroll ( movspd ) {
+	if ( keystatus[0xcb] ) { // Left arrow-key
+		if ( screenx < 0 ) {
+			screenx += movspd;
+		}
+	}
+	if ( keystatus[0xcd] ) { // Right arrow-key
+		if ( screenx > xres - tilesizx*WORLD_LENGTH_TILES ) {
+			screenx -= movspd;
+		}
+	}
+	if ( keystatus[0xc8] ) {
+		if ( screeny < 0 ) {
+			screeny += movspd;
+		}
+	}
+	if ( keystatus[0xd0] ) {
+		if ( screeny > yres - tilesizy*WORLD_HEIGHT_TILES ) {
+			screeny -= movspd;
+		}
+	}
+}
+
+// ======== Drawing Fucntions =======
+
+drawplayer ( x, y, w, h ) {
+	glsettex( "alucardIdle1.png" );
+	drawspr( x, y, 32, 48, 0 );
+}
+
+drawworld () {
+	glsettex( "wood.png" );
+	// GL drawing origin starts in middle of sprite
+	spx = screenx + tilesizx/2; spy = screeny + tilesizy/2;
+	for ( y = 0; y < WORLD_HEIGHT_TILES; y++ ) {
+		for ( x = 0; x < WORLD_LENGTH_TILES; x++ ) {
+			if ( world[y][x] == 0 ) {
+				glsettex( "wood.png" );
+			} else if ( world[y][x] = 1 ) {
+				glsettex( "brick.png" );
+			}
+			drawspr( spx, spy, tilesizx/2, tilesizy/2, 0 );
+			spx += tilesizx;
+		}
+		spx = screenx + tilesizx/2;
+		spy += tilesizy;
+	}
+}
+
+drawdebugmap () {
+	// Rect drawing starts from what would be the top left corner of the rect
+	spx = screenx + tilesizx/2;
+	spy = screeny + tilesizy/2;
+	for ( y = 0; y < WORLD_HEIGHT_TILES; y++ ) {
+		for (x = 0; x < WORLD_LENGTH_TILES; x++ ) {
+			if ( world[y][x] == 1 ) {
+				draw_rect( spx, spy, tilesizx, tilesizy );
+			}
+			spx += tilesizx;
+		}
+		// reset the x pos
+		spx = screenx + tilesizx/2;
+		spy += tilesizy;
+	}
+}
+
+// modify this to treat x,y as the center
+draw_rect( x,y,w,h ) {
+	// calc the corner points from the
+	// center.
+	hw = w/2;
+	hh = h/2;
+
+	vec2d_t p1;
+	vec2d_t p2;
+	vec2d_t p3;
+	vec2d_t p4;
+
+	p1.x = x - hw;
+	p1.y = y - hh;
+	p2.x = x + hw;
+	p2.y = y - hh;
+	p3.x = x + hw;
+	p3.y = y + hh;
+	p4.x = x - hw;
+	p4.y = y + hh;
+
+	moveto(p1.x, p1.y);
+	lineto(p2.x, p2.y);
+	moveto(p2.x, p2.y);
+	lineto(p3.x, p3.y);
+	moveto(p3.x, p3.y);
+	lineto(p4.x, p4.y);
+	moveto(p4.x, p4.y);
+	lineto(p1.x, p1.y);
+}
+
+// =========Player Functions==========
+
+// update the player velocity and such
+p_update(player_t p, dt) {
+	if ( p.y+p.h/2 > y_floor ) {
+		p.y = y_floor - p.h/2;
+	}
+
+	// apply gravity
+	p_apply_grav(p, dt);
+
+	// appl	y movement
+	p_move(p, dt);
+
+	p.x = p.x + p.xvel * dt;
+	p.y = p.y + p.yvel * dt;
+}
+
+p_move(player_t p, dt) {
+	// Player movement
+	if (keystatus[0xcb] == 1) {
+		p.xvel = -1 * p_movesp;
+	}
+
+	if (keystatus[0xcd] == 1) {
+		p.xvel = p_movesp;
+	}
+
+	if (keystatus[0xcb] == 0
+		&& keystatus[0xcd] == 0) {
+		p.xvel = 0;
+	}
+
+	if (keystatus[0x39] == 1) {
+		p_jump(p, dt);
+	}
+}
+
+// Player movement funcitons
+p_jump(player_t p, dt) {
+	p.yvel = -1 * jump_vel;
+}
+
+p_apply_grav(player_t p, dt) {
+	p.yvel = p.yvel + grav;
+}
+
+// ====== Collision Functions =======
+// Special case of SAT algorithm for
+// AABB's only.
+aabb_collision ( rect_t a, rect_t b, vec2d_t offset ) {
+
+}
+
+overlapping ( rect_t a, rect_t b ) {
+	return ((a.x < b.x+b.w && a.x+a.w > b.x) &&
+			  (a.y < b.y+b.h && a.y+a.h > b.y))
+}
+
+// ======== vector maths ========
+project ( vec2d_t u, vec2d_t v, vec2d_t res ) {
+	// [(u dot v)/(u dot u)]*u
+	udv = dot( u, v );
+	vdv = dot( v, v );
+	res.x = (udv/vdv)*v.x;
+	res.y = (udv/vdv)*v.y;
+}
+
+dot ( vec2d_t u, vec2d_t v ) {
+	// u1*v1 + u2*v2
+	return u.x*v.x + u.y*v.y;
+}
+
+dot_2d ( x1, y1, x2, y2 ) {
+	return (x1*x2)+(y1*y2);
+}
+
+len ( vec2d_t u ) {
+	sqrt ( u.x*u.x + u.y*u.y );
+}
